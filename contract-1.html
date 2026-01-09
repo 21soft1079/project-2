@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FreshChain – Food Traceability</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
+  <style>
+    body { font-family: Arial; background:#f4f6fb; padding:20px }
+    h2 { margin-top:20px }
+    .box { background:#fff; padding:15px; border-radius:6px; margin-bottom:20px }
+    input, button, select { margin:5px; padding:6px }
+    pre { background:#eee; padding:10px }
+  </style>
+</head>
+<body>
+
+<h1>FreshChain – Sepolia </h1>
+
+
+<div class="box">
+  <button onclick="connectWallet()">Connect Wallet</button>
+  <p id="status">Not connected</p>
+</div>
+
+
+<div class="box">
+  <h2>Admin</h2>
+  <input id="producerAddr" placeholder="Producer address">
+  <button onclick="registerProducer()">Register Producer</button><br>
+
+  <input id="transporterAddr" placeholder="Transporter address">
+  <button onclick="registerTransporter()">Register Transporter</button><br>
+
+  <input id="distributorAddr" placeholder="Distributor address">
+  <button onclick="registerDistributor()">Register Distributor</button><br>
+
+  <input id="retailerAddr" placeholder="Retailer address">
+  <button onclick="registerRetailer()">Register Retailer</button>
+</div>
+
+
+<div class="box">
+  <h2>Producer</h2>
+  <input id="batchId" placeholder="Batch ID (uint)">
+  <input id="productName" placeholder="Product name">
+  <input id="quantity" placeholder="Quantity">
+  <button onclick="createBatch()">Create Batch</button>
+</div>
+
+
+<div class="box">
+  <h2>Transporter</h2>
+  <input id="batchIdT" placeholder="Batch ID">
+  <input id="temperature" placeholder="Temperature (-10 to 40)">
+  <input id="humidity" placeholder="Humidity (0 to 40)">
+  <input id="location" placeholder="Location">
+  <button onclick="addSensorData()">Add Sensor Data</button>
+</div>
+
+<div class="box">
+  <h2>Retailer</h2>
+  <input id="batchIdR" placeholder="Batch ID">
+  <select id="inspection">
+    <option value="true">Passed</option>
+    <option value="false">Failed</option>
+  </select>
+  <button onclick="markArrived()">Mark As Arrived</button>
+</div>
+
+
+<div class="box">
+  <h2>Customer (QR Scan Result)</h2>
+  <input id="batchIdC" placeholder="Batch ID">
+  <button onclick="getHistory()">View History</button>
+  <pre id="history"></pre>
+</div>
+
+<script>
+
+
+
+const contractAddress = "0x4Cf32bff5eB9c6c197744D5D977aF897E64Dc8E3";
+
+const abi = [
+  "function registerProducer(address)",
+  "function registerTransporter(address)",
+  "function registerDistributor(address)",
+  "function registerRetailer(address)",
+
+  "function createBatch(uint256,string,uint256)",
+  "function addSensorData(uint256,int256,int256,string)",
+  "function markAsArrived(uint256,bool)",
+
+  "function getBatchHistory(uint256) view returns (uint256,string,uint256,address,address,bool,bool,uint256,address[])"
+];
+
+
+
+let provider;
+let signer;
+let contract;
+
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    alert("MetaMask not installed");
+    return;
+  }
+
+  await window.ethereum.request({ method: "eth_requestAccounts" });
+
+  provider = new ethers.providers.Web3Provider(window.ethereum);
+  signer = provider.getSigner();
+  contract = new ethers.Contract(contractAddress, abi, signer);
+
+  const addr = await signer.getAddress();
+  document.getElementById("status").innerText =
+    "Connected: " + addr;
+}
+
+
+function getAddr(id) {
+  const v = document.getElementById(id).value.trim();
+  if (!ethers.utils.isAddress(v)) {
+    alert("Invalid Ethereum address");
+    throw "invalid address";
+  }
+  return v;
+}
+
+async function registerProducer() {
+  const tx = await contract.registerProducer(getAddr("producerAddr"));
+  await tx.wait();
+  alert("Producer registered");
+}
+
+async function registerTransporter() {
+  const tx = await contract.registerTransporter(getAddr("transporterAddr"));
+  await tx.wait();
+  alert("Transporter registered");
+}
+
+async function registerDistributor() {
+  const tx = await contract.registerDistributor(getAddr("distributorAddr"));
+  await tx.wait();
+  alert("Distributor registered");
+}
+
+async function registerRetailer() {
+  const tx = await contract.registerRetailer(getAddr("retailerAddr"));
+  await tx.wait();
+  alert("Retailer registered");
+}
+
+
+async function createBatch() {
+  try {
+    const tx = await contract.createBatch(
+      parseInt(batchId.value),
+      productName.value,
+      parseInt(quantity.value)
+    );
+    await tx.wait();
+    alert("Batch created successfully ✅");
+  } catch (e) {
+    console.error(e);
+    alert(e.reason || e.message);
+  }
+}
+
+
+
+async function addSensorData() {
+  try {
+    if (!contract) {
+      alert("Connect wallet first");
+      return;
+    }
+
+    const batchId = parseInt(batchIdT.value);
+    const temp = parseInt(temperature.value);
+    const hum = parseInt(humidity.value);
+    const loc = document.getElementById("location").value.trim();
+
+    if (isNaN(batchId) || isNaN(temp) || isNaN(hum)) {
+      alert("Batch ID, temperature, and humidity must be numbers");
+      return;
+    }
+
+    if (temp < -10 || temp > 40) {
+      alert("Temperature must be between -10 and 40");
+      return;
+    }
+
+    if (hum < 0 || hum > 100) {
+      alert("Humidity must be between 0 and 100");
+      return;
+    }
+
+    if (!loc) {
+      alert("Location is required");
+      return;
+    }
+
+    const tx = await contract.addSensorData(
+      batchId,
+      temp,
+      hum,
+      loc
+    );
+
+    await tx.wait();
+    alert("Sensor data added successfully ✅");
+
+  } catch (e) {
+    console.error(e);
+    alert(e.reason || e.message);
+  }
+}
+
+
+
+
+async function markArrived() {
+  const tx = await contract.markAsArrived(
+    batchIdR.value,
+    inspection.value === "true"
+  );
+  await tx.wait();
+  alert("Batch marked as arrived");
+}
+
+
+async function getHistory() {
+  try {
+    if (!contract) {
+      alert("Connect wallet first");
+      return;
+    }
+
+    const id = parseInt(document.getElementById("batchIdC").value);
+    if (isNaN(id)) {
+      alert("Batch ID must be a number");
+      return;
+    }
+
+    const r = await contract.getBatchHistory(id);
+
+    document.getElementById("history").innerText = `
+Batch ID: ${r[0]}
+Product Name: ${r[1]}
+Quantity: ${r[2]}
+Producer: ${r[3]}
+Current Owner: ${r[4]}
+Arrived At Retailer: ${r[5]}
+Passed Inspection: ${r[6]}
+Created At: ${new Date(Number(r[7]) * 1000).toLocaleString()}
+Ownership History:
+${r[8].join("\n")}
+`;
+  } catch (e) {
+    console.error(e);
+    alert(e.reason || e.message);
+  }
+}
+
+
+</script>
+
+</body>
+</html>
