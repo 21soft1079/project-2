@@ -5,6 +5,7 @@
   <title>FreshChain – Food Traceability</title>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
   <style>
     body { font-family: Arial; background:#f4f6fb; padding:20px }
@@ -47,7 +48,10 @@
   <input id="productName" placeholder="Product name">
   <input id="quantity" placeholder="Quantity">
   <button onclick="createBatch()">Create Batch</button>
+
+  <div id="qrcode" style="margin-top:10px;"></div>
 </div>
+
 
 
 <div class="box">
@@ -157,18 +161,43 @@ async function registerRetailer() {
 
 async function createBatch() {
   try {
-    const tx = await contract.createBatch(
-      parseInt(batchId.value),
-      productName.value,
-      parseInt(quantity.value)
-    );
+    const id = parseInt(document.getElementById("batchId").value);
+    const name = document.getElementById("productName").value;
+    const qty = parseInt(document.getElementById("quantity").value);
+
+    if (isNaN(id) || isNaN(qty) || !name) {
+      alert("Fill all batch fields correctly");
+      return;
+    }
+
+    const tx = await contract.createBatch(id, name, qty);
     await tx.wait();
+
     alert("Batch created successfully ✅");
+
+    // Clear old QR
+    document.getElementById("qrcode").innerHTML = "";
+
+    // Create URL with batchId
+    const url =
+      window.location.origin +
+      window.location.pathname +
+      "?batchId=" +
+      id;
+
+    // Generate QR code
+    new QRCode(document.getElementById("qrcode"), {
+      text: url,
+      width: 150,
+      height: 150
+    });
+
   } catch (e) {
     console.error(e);
     alert(e.reason || e.message);
   }
 }
+
 
 
 
@@ -266,6 +295,14 @@ ${r[8].join("\n")}
   }
 }
 
+window.onload = () => {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("batchId");
+
+  if (id) {
+    document.getElementById("batchIdC").value = id;
+  }
+};
 
 </script>
 
